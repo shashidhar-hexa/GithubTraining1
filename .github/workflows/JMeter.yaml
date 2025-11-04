@@ -1,0 +1,53 @@
+# yaml
+name: jmeter-ci
+
+on:
+  push:
+    paths:
+      - 'tests/**'
+  pull_request:
+    paths:
+      - 'tests/**'
+
+jobs:
+  jmeter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Download Apache JMeter
+        run: |
+          JMETER_VERSION=5.6.3
+          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-${JMETER_VERSION}.tgz
+          tar -xzf apache-jmeter-${JMETER_VERSION}.tgz
+          echo "$PWD/apache-jmeter-${JMETER_VERSION}" >> $GITHUB_PATH
+
+      - name: Install JMeter plugins (optional)
+        run: |
+          # Example: install custom plugin manager if you need
+          wget -q -O jmeter-plugins-manager.jar https://jmeter-plugins.org/get/
+          mkdir -p $HOME/.jmeter
+          mv jmeter-plugins-manager.jar $HOME/.jmeter/
+
+      - name: Run JMeter (non-GUI)
+        run: |
+          JMETER_HOME=$(ls -d apache-jmeter-*)
+          TEST_FILE=tests/sample_test.jmx
+          RESULTS_DIR=results
+          mkdir -p ${RESULTS_DIR}
+          ${JMETER_HOME}/bin/jmeter -n -t ${TEST_FILE} -l ${RESULTS_DIR}/results.jtl -Jthreads=10 -Jduration=30
+          # Generate HTML report
+          ${JMETER_HOME}/bin/jmeter -g ${RESULTS_DIR}/results.jtl -o ${RESULTS_DIR}/html_report || true
+
+      - name: Upload results and report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-results
+          path: results
